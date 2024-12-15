@@ -42,14 +42,27 @@ void init_scheduler(void) {
  *  We implement stateful here using transition technique
  *  State representation   prio = 0 .. MAX_PRIO, curr_slot = 0..(MAX_PRIO - prio)
  */
-struct pcb_t * get_mlq_proc(void) {
-	struct pcb_t * proc = NULL;
-	/*TODO: get a process from PRIORITY [ready_queue].
-	 * Remember to use lock to protect the queue.
-	 */
-	proc = dequeue(&mlq_ready_queue[0]);
-	return proc;	
+struct pcb_t *get_mlq_proc(void) {
+    struct pcb_t *proc = NULL;
+
+    // Lock hàng đợi để bảo vệ truy cập
+    pthread_mutex_lock(&queue_lock);
+
+    // Duyệt các hàng đợi theo thứ tự ưu tiên
+    for (int i = MAX_PRIO - 1; i >= 0; i--) { 
+        if (mlq_ready_queue[i].size > 0) { // Tìm hàng đợi có process
+            proc = dequeue(&mlq_ready_queue[i]); // Lấy process đầu tiên
+            break; // Thoát sau khi tìm được process
+        }
+    }
+
+    // Mở lock sau khi hoàn thành thao tác
+    pthread_mutex_unlock(&queue_lock);
+
+    return proc;
 }
+
+
 
 void put_mlq_proc(struct pcb_t * proc) {
 	pthread_mutex_lock(&queue_lock);
@@ -75,13 +88,25 @@ void add_proc(struct pcb_t * proc) {
 	return add_mlq_proc(proc);
 }
 #else
-struct pcb_t * get_proc(void) {
-	struct pcb_t * proc = NULL;
-	/*TODO: get a process from [ready_queue].
-	 * Remember to use lock to protect the queue.
-	 * */
-	return proc;
+struct pcb_t *get_proc(void) {
+    struct pcb_t *proc = NULL;
+
+    pthread_mutex_lock(&queue_lock);
+
+    for (int i = MAX_PRIORITY - 1; i >= 0; i--) { // Duyệt từ độ ưu tiên cao xuống thấp
+        if (ready_queue[i].size > 0) {
+            proc = dequeue(&ready_queue[i]);
+            break;
+        }
+    }
+
+    pthread_mutex_unlock(&queue_lock);
+
+    return proc;
 }
+
+
+
 
 void put_proc(struct pcb_t * proc) {
 	pthread_mutex_lock(&queue_lock);

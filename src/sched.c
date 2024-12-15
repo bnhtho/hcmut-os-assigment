@@ -79,7 +79,7 @@ struct pcb_t * get_proc(void) {
 	struct pcb_t * proc = NULL;
 	/*TODO: get a process from [ready_queue].
 	 * Remember to use lock to protect the queue.
-	 * */
+	 * */z
 	return proc;
 }
 

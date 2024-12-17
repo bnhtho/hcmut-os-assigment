@@ -18,7 +18,7 @@ int queue_empty(void) {
 	unsigned long prio;
 	for (prio = 0; prio < MAX_PRIO; prio++)
 		if(!empty(&mlq_ready_queue[prio])) 
-			return -1;
+			return 0;
 #endif
 	return (empty(&ready_queue) && empty(&run_queue));
 }
@@ -28,7 +28,10 @@ void init_scheduler(void) {
 	int i ;
 
 	for (i = 0; i < MAX_PRIO; i ++)
+	{
 		mlq_ready_queue[i].size = 0;
+		mlq_ready_queue[i].slot = MAX_PRIO - i;
+	}
 #endif
 	ready_queue.size = 0;
 	run_queue.size = 0;
@@ -36,6 +39,41 @@ void init_scheduler(void) {
 }
 
 #ifdef MLQ_SCHED
+/* Function to print the contents of the MLQ ready queue */
+void print_mlq_ready_queue(void)
+{
+	pthread_mutex_lock(&queue_lock);
+
+	printf("|=====================================|\n");
+	printf("Multilevel Queue Ready Queue:\n");
+	for (int prio = 0; prio < MAX_PRIO; prio++)
+	{
+		if (mlq_ready_queue[prio].size > 0)
+		{
+			printf("Queue Priority %d (Slot : %d ,size : %d): ", prio, mlq_ready_queue[prio].slot, mlq_ready_queue[prio].size);
+			for (int i = 0; i < mlq_ready_queue[prio].size; i++)
+			{
+				struct pcb_t *proc = mlq_ready_queue[prio].proc[i];
+				printf("[process (PID): %u, Priority: %u, Prio: %u] ", proc->pid, proc->priority, proc->prio);
+			}
+			printf("\n");
+		}
+	}
+	printf("|=====================================|\n");
+
+	pthread_mutex_unlock(&queue_lock);
+}
+
+
+void resetSlot()
+{
+	for (int i = 0; i < MAX_PRIO; ++i)
+	{
+		mlq_ready_queue[i].slot = MAX_PRIO - i;
+	}
+}
+
+
 /* 
  *  Stateful design for routine calling
  *  based on the priority and our MLQ policy
@@ -44,21 +82,35 @@ void init_scheduler(void) {
  */
 struct pcb_t *get_mlq_proc(void) {
     struct pcb_t *proc = NULL;
-
-    // Lock hàng đợi để bảo vệ truy cập
-    pthread_mutex_lock(&queue_lock);
-
+	/*TODO: get a process from PRIORITY [ready_queue].
+	 * Remember to use lock to protect the queue.
+	 */
+	// Print to debug
+	// print_mlq_ready_queue();
     // Duyệt các hàng đợi theo thứ tự ưu tiên
-    for (int i = MAX_PRIO - 1; i >= 0; i--) { 
-        if (mlq_ready_queue[i].size > 0) { // Tìm hàng đợi có process
-            proc = dequeue(&mlq_ready_queue[i]); // Lấy process đầu tiên
-            break; // Thoát sau khi tìm được process
-        }
-    }
+   	pthread_mutex_lock(&queue_lock); // Khóa để bảo vệ hàng đợi
 
-    // Mở lock sau khi hoàn thành thao tác
-    pthread_mutex_unlock(&queue_lock);
+	// Duyệt qua từng hàng đợi theo độ ưu tiên (từ cao đến thấp)
+	for (int prio = 0; prio < MAX_PRIO; prio++)
+	{
+		if (mlq_ready_queue[prio].size > 0)
+		{
+			if (mlq_ready_queue[prio].slot > 0)
+			{
+				proc = dequeue(&mlq_ready_queue[prio]); // Lấy tiến trình đầu tiên
+				mlq_ready_queue[prio].slot--;
+				break;
+			}else{
+				// Trường hợp đi tới cuối queue rồi mà không lấy được nữa thì quay lại hàng đầu tiên để lấy tiếp và reset lại slot để lấy lại từ đầu
+				if(prio == MAX_PRIO - 1){	
+					resetSlot();
+					prio = -1;
+				}
+			}
+		}
+	}
 
+	pthread_mutex_unlock(&queue_lock); // Mở khóa hàng đợi
     return proc;
 }
 
@@ -89,20 +141,21 @@ void add_proc(struct pcb_t * proc) {
 }
 #else
 struct pcb_t *get_proc(void) {
-    struct pcb_t *proc = NULL;
+	/*TODO: get a process from [ready_queue].
+	 * Remember to use lock to protect the queue.
+	 * */
+	struct pcb_t *proc = NULL;
 
-    pthread_mutex_lock(&queue_lock);
+	pthread_mutex_lock(&queue_lock);
 
-    for (int i = MAX_PRIORITY - 1; i >= 0; i--) { // Duyệt từ độ ưu tiên cao xuống thấp
-        if (ready_queue[i].size > 0) {
-            proc = dequeue(&ready_queue[i]);
-            break;
-        }
-    }
+	// Lấy tiến trình từ ready_queue nếu không rỗng
+	if (ready_queue.size > 0)
+	{
+		proc = dequeue(&ready_queue);
+	}
 
-    pthread_mutex_unlock(&queue_lock);
-
-    return proc;
+	pthread_mutex_unlock(&queue_lock);
+	return proc;
 }
 
 

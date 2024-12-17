@@ -3,14 +3,15 @@
 #include "queue.h"
 
 int empty(struct queue_t * q) {
-        if (q == NULL) return 1;
-	return (q->size == 0);
+	if (q == NULL)
+		return 1;
+	return (q->size == 0) ? 1 : 0;
 }
 
 void enqueue(struct queue_t *q, struct pcb_t *proc) {
     if (q->size >= MAX_QUEUE_SIZE) return; // Hàng đợi đầy
     int i = q->size - 1;
-    while (i >= 0 && q->proc[i]->priority < proc->priority) {
+    while (i >= 0 && q->proc[i]->priority > proc->priority) {
         q->proc[i + 1] = q->proc[i]; // Dịch process có độ ưu tiên thấp hơn
         i--;
     }
@@ -23,7 +24,7 @@ struct pcb_t *dequeue(struct queue_t *q) {
     struct pcb_t *proc = q->proc[0]; // Lấy process đầu tiên (ưu tiên cao nhất)
     for (int i = 0; i < q->size - 1; i++) {
         q->proc[i] = q->proc[i + 1]; // Dịch các process còn lại lên
-    }
+	}
     q->size--;
     return proc;
 }

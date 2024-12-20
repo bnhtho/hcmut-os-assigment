@@ -144,74 +144,83 @@ static void * ld_routine(void * args) {
 }
 
 static void read_config(const char * path) {
-	FILE * file;
-	if ((file = fopen(path, "r")) == NULL) {
-		printf("Cannot find configure file at %s\n", path);
-		exit(1);
-	}
-	fscanf(file, "%d %d %d\n", &time_slot, &num_cpus, &num_processes);
-	ld_processes.path = (char**)malloc(sizeof(char*) * num_processes);
-	ld_processes.start_time = (unsigned long*)
-		malloc(sizeof(unsigned long) * num_processes);
+    FILE *file;
+    if ((file = fopen(path, "r")) == NULL) {
+        fprintf(stderr, "Error: Cannot find configuration file at %s\n", path);
+        exit(1);
+    }
 
-#ifdef CPU_TLB
-#ifdef CPUTLB_FIXED_TLBSZ
-	/* We provide here a back compatible with legacy OS simulatiom config file
-	 * In which, it have no addition config line for CPU_TLB
-	 */
-	tlbsz = 0x10000;
-#else
-	/* Read input config of TLB size:
-	 * Format:
-	 *        CPU_TLBSZ
-	*/
-	fscanf(file, "%d\n", &tlbsz);
-#endif
-#endif
+    // Đọc thông tin dòng đầu tiên
+    if (fscanf(file, "%d %d %d\n", &time_slot, &num_cpus, &num_processes) != 3) {
+        fprintf(stderr, "Error: Invalid configuration file format (expected 3 integers in first line).\n");
+        fclose(file);
+        exit(1);
+    }
 
+    // Đọc thông tin dòng thứ hai: RAM size và Swap sizes
 #ifdef MM_PAGING
-	int sit;
-#ifdef MM_FIXED_MEMSZ
-	/* We provide here a back compatible with legacy OS simulatiom config file
-	 * In which, it have no addition config line for Mema, keep only one line
-	 * for legacy info 
-	 *  [time slice] [N = Number of CPU] [M = Number of Processes to be run]
-	 */
-	memramsz    =  0x100000;
-	memswpsz[0] = 0x1000000;
-	for(sit = 1; sit < PAGING_MAX_MMSWP; sit++)
-		memswpsz[sit] = 0;
-#else
-	/* Read input config of memory size: MEMRAM and upto 4 MEMSWP (mem swap)
-	 * Format: (size=0 result non-used memswap, must have RAM and at least 1 SWAP)
-	 *        MEM_RAM_SZ MEM_SWP0_SZ MEM_SWP1_SZ MEM_SWP2_SZ MEM_SWP3_SZ
-	*/
-	fscanf(file, "%d\n", &memramsz);
-	for(sit = 0; sit < PAGING_MAX_MMSWP; sit++)
-		fscanf(file, "%d", &(memswpsz[sit])); 
-
-	fscanf(file, "\n"); /* Final character */
-#endif
+    if (fscanf(file, "%d", &memramsz) != 1) {
+        fprintf(stderr, "Error: Failed to read RAM size in configuration file.\n");
+        fclose(file);
+        exit(1);
+    }
+    for (int i = 0; i < PAGING_MAX_MMSWP; i++) {
+        if (fscanf(file, "%d", &memswpsz[i]) != 1) {
+            memswpsz[i] = 0;  // Nếu không có giá trị, đặt thành 0 (không dùng swap)
+        }
+    }
+    fscanf(file, "\n");  // Đọc ký tự xuống dòng
 #endif
 
+    // Khởi tạo mảng lưu thông tin quy trình
+    ld_processes.path = (char**)malloc(sizeof(char*) * num_processes);
+    ld_processes.start_time = (unsigned long*)malloc(sizeof(unsigned long) * num_processes);
+    if (ld_processes.path == NULL || ld_processes.start_time == NULL) {
+        fprintf(stderr, "Error: Memory allocation failed.\n");
+        fclose(file);
+        exit(1);
+    }
+
 #ifdef MLQ_SCHED
-	ld_processes.prio = (unsigned long*)
-		malloc(sizeof(unsigned long) * num_processes);
+    ld_processes.prio = (unsigned long*)malloc(sizeof(unsigned long) * num_processes);
+    if (ld_processes.prio == NULL) {
+        fprintf(stderr, "Error: Memory allocation for priorities failed.\n");
+        fclose(file);
+        exit(1);
+    }
 #endif
-	int i;
-	for (i = 0; i < num_processes; i++) {
-		ld_processes.path[i] = (char*)malloc(sizeof(char) * 100);
-		ld_processes.path[i][0] = '\0';
-		strcat(ld_processes.path[i], "input/proc/");
-		char proc[100];
+
+    // Đọc thông tin các quy trình
+    for (int i = 0; i < num_processes; i++) {
+        ld_processes.path[i] = (char*)malloc(sizeof(char) * 100);
+        if (ld_processes.path[i] == NULL) {
+            fprintf(stderr, "Error: Memory allocation for process path failed.\n");
+            fclose(file);
+            exit(1);
+        }
+        ld_processes.path[i][0] = '\0';
+
+        strcat(ld_processes.path[i], "input/proc/");
+        char proc[100];
 #ifdef MLQ_SCHED
-		fscanf(file, "%lu %s %lu\n", &ld_processes.start_time[i], proc, &ld_processes.prio[i]);
+        if (fscanf(file, "%lu %s %lu\n", &ld_processes.start_time[i], proc, &ld_processes.prio[i]) != 3) {
+            fprintf(stderr, "Error: Invalid process entry format in configuration file.\n");
+            fclose(file);
+            exit(1);
+        }
 #else
-		fscanf(file, "%lu %s\n", &ld_processes.start_time[i], proc);
+        if (fscanf(file, "%lu %s\n", &ld_processes.start_time[i], proc) != 2) {
+            fprintf(stderr, "Error: Invalid process entry format in configuration file.\n");
+            fclose(file);
+            exit(1);
+        }
 #endif
-		strcat(ld_processes.path[i], proc);
-	}
+        strcat(ld_processes.path[i], proc);
+    }
+
+    fclose(file);
 }
+
 
 int main(int argc, char * argv[]) {
 	/* Read config */

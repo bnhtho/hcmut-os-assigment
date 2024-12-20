@@ -99,6 +99,38 @@ int vmap_page_range(struct pcb_t *caller, // process call
    *      [addr to addr + pgnum*PAGING_PAGESZ
    *      in page table caller->mm->pgd[]
    */
+  for (pgit = 0; pgit < pgnum; pgit++) {
+    addr_t vaddr = addr + pgit * PAGING_PAGESZ;
+    int pgn = PAGING_PGN(vaddr);
+    uint32_t *pte = &caller->mm->pgd[pgn];
+    
+    // Initialize the page table entry to map to the physical frame
+    // Assuming frames is a linked list, traverse to the current frame
+    struct framephy_struct *current_frame = frames;
+    int frame_index = pgit;
+    while (current_frame != NULL && frame_index > 0) {
+        current_frame = current_frame->fp_next;
+        frame_index--;
+    }
+    
+    if (current_frame == NULL) {
+        // This should not happen as alloc_pages_range ensures enough frames
+        fprintf(stderr, "Error: Not enough frames to map.\n");
+        return -1;
+    }
+    
+    // Initialize the PTE: present=1, fpn=current_frame->fpn, dirty=0, swapped=0
+    if (init_pte(pte, 1, current_frame->fpn, 0, 0, 0, 0) != 0) {
+        fprintf(stderr, "Error: Failed to initialize PTE.\n");
+        return -1;
+    }
+    
+    // Enqueue the page number for FIFO tracking
+    enlist_pgn_node(&caller->mm->fifo_pgn, pgn);
+}
+
+// Update the mapped region's end address
+ret_rg->rg_end = addr + pgnum * PAGING_PAGESZ;
 
    /* Tracking for later page replacement activities (if needed)
     * Enqueue new usage page */
@@ -123,11 +155,44 @@ int alloc_pages_range(struct pcb_t *caller, int req_pgnum, struct framephy_struc
   for(pgit = 0; pgit < req_pgnum; pgit++)
   {
     if(MEMPHY_get_freefp(caller->mram, &fpn) == 0)
-   {
-     
-   } else {  // ERROR CODE of obtaining somes but not enough frames
-   } 
- }
+        {
+            // Successfully obtained a free physical frame number (fpn)
+            struct framephy_struct *newfp = malloc(sizeof(struct framephy_struct));
+            if (newfp == NULL) {
+                fprintf(stderr, "Error: Unable to allocate memory for framephy_struct.\n");
+                
+                // Free already allocated frames in case of failure
+                struct framephy_struct *temp;
+                while (*frm_lst != NULL) {
+                    temp = *frm_lst;
+                    *frm_lst = (*frm_lst)->fp_next;
+                    free(temp);
+                }
+                
+                return -3000; // Indicate out of memory
+            }
+
+            // Initialize the new frame structure
+            newfp->fpn = fpn;
+            newfp->fp_next = *frm_lst;
+            *frm_lst = newfp;
+        } 
+        else 
+        {  
+            // ERROR CODE of obtaining some but not enough frames
+            fprintf(stderr, "Error: Not enough free physical frames available.\n");
+            
+            // Free already allocated frames in case of failure
+            struct framephy_struct *temp;
+            while (*frm_lst != NULL) {
+                temp = *frm_lst;
+                *frm_lst = (*frm_lst)->fp_next;
+                free(temp);
+            }
+            
+            return -3000; // Indicate out of memory
+        } 
+    }
 
   return 0;
 }

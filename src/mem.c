@@ -48,8 +48,9 @@ static struct trans_table_t * get_trans_table(
 	int i;
 	for (i = 0; i < page_table->size; i++) {
 		// Enter your code here
-        if (page_table->table[i].v_index == index) {
-            return &page_table->table[i];
+		if (page_table->table[i].v_index == index)
+        {
+            return page_table->table[i].next_lv;
         }
 	}
 	return NULL;
@@ -106,7 +107,17 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 	 * to know whether this page has been used by a process.
 	 * For virtual memory space, check bp (break pointer).
 	 * */
-	
+    int freePages = 0;
+    for (int i = 0; i < NUM_PAGES; i++) {
+        if (_mem_stat[i].proc == 0) {
+            freePages++;
+        }
+    }
+
+    addr_t new_bp = proc->bp + num_pages * PAGE_SIZE;
+    if (num_pages <= freePages && new_bp <= RAM_SIZE) {
+        mem_avail = 1;
+    }
 	if (mem_avail) {
 		/* We could allocate new memory region to the process */
 		ret_mem = proc->bp;
@@ -117,6 +128,47 @@ addr_t alloc_mem(uint32_t size, struct pcb_t * proc) {
 		 * 	- Add entries to segment table page tables of [proc]
 		 * 	  to ensure accesses to allocated memory slot is
 		 * 	  valid. */
+		int numPages = 0;
+        int lastPage = -1;
+        for (int i = 0; i < NUM_PAGES; i++) {
+            if (_mem_stat[i].proc == 0) {
+				_mem_stat[i].proc = proc->pid;
+				_mem_stat[i].index = numPages;
+				if (lastPage > -1) {
+					_mem_stat[lastPage].next = i;
+				}
+				lastPage = i;
+
+				addr_t v_address = ret_mem + (numPages * PAGE_SIZE);
+				addr_t first_lv = get_first_lv(v_address);
+				addr_t second_lv = get_second_lv(v_address);
+				
+				struct page_table_t * v_seg_table = proc->page_table;
+				struct trans_table_t * v_trans_table = get_trans_table(first_lv, v_seg_table);
+
+				if (!v_trans_table) {
+					v_seg_table->table[v_seg_table->size].v_index = first_lv;
+					v_seg_table->table[v_seg_table->size].next_lv = malloc(sizeof(struct trans_table_t));
+
+					v_trans_table = v_seg_table->table[v_seg_table->size].next_lv;
+					v_trans_table->size = 0;
+
+					v_seg_table->size++;
+				}
+				v_trans_table->table[v_trans_table->size].v_index = second_lv;
+				v_trans_table->table[v_trans_table->size].p_index = i;
+
+				v_trans_table->size++;
+
+				if (++numPages == num_pages) {
+					_mem_stat[i].next = -1;
+					break;
+				}
+			}
+        }
+	puts("---------STATUS OF RAM AFTER ALLOCATION---------");
+	dump();
+	puts("------------------------------------------------");
 	}
 	pthread_mutex_unlock(&mem_lock);
 	return ret_mem;

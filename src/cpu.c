@@ -2,7 +2,11 @@
 #include "cpu.h"
 #include "mem.h"
 #include "mm.h"
+#include <stdio.h>
 
+/**
+ * Hàm calc này luôn trả về 0 bất kể giá trị của proc là gì. Nó không thực hiện bất kỳ tính toán thực sự nào và có thể chỉ là một hàm giả lập hoặc hàm giữ chỗ (placeholder) trong mã nguồn.
+ */
 int calc(struct pcb_t * proc) {
 	return ((unsigned long)proc & 0UL);
 }
@@ -48,6 +52,7 @@ int write(
 int run(struct pcb_t * proc) {
 	/* Check if Program Counter point to the proper instruction */
 	if (proc->pc >= proc->code->size) {
+		MEMPHY_dump(proc->mram);
 		return 1;
 	}
 	
@@ -62,7 +67,11 @@ int run(struct pcb_t * proc) {
 #ifdef CPU_TLB 
 		stat = tlballoc(proc, ins.arg_0, ins.arg_1);
 #elif defined(MM_PAGING)
+		printf("\tProcessID : %d ",proc->pid);
+		printf("%syêu cầu cấp phát bộ nhớ %s",GREEN, RESET);
+		printf("với dung lượng %d BYTE ở reg_index : %d\n",ins.arg_0,ins.arg_1);
 		stat = pgalloc(proc, ins.arg_0, ins.arg_1);
+		print_pgtbl(proc,0,-1);
 #else
 		stat = alloc(proc, ins.arg_0, ins.arg_1);
 #endif
@@ -71,7 +80,14 @@ int run(struct pcb_t * proc) {
 #ifdef CPU_TLB
 		stat = tlbfree_data(proc, ins.arg_0);
 #elif defined(MM_PAGING)
+		printf("\tProcessID : %d ",proc->pid);
+		printf("%syêu cầu giải phóng vùng nhớ%s",RED,RESET);
+		printf(" ở reg_index : %d\n",ins.arg_0);
+		// print_pgtbl(proc,0,-1);
+		struct vm_rg_struct *temp = get_symrg_byid(proc->mm,ins.arg_0);
+		// print_pgtbl(proc,temp->rg_start,temp->rg_end);
 		stat = pgfree_data(proc, ins.arg_0);
+		print_pgtbl(proc,temp->rg_start,temp->rg_end);
 #else
 		stat = free_data(proc, ins.arg_0);
 #endif
@@ -80,6 +96,10 @@ int run(struct pcb_t * proc) {
 #ifdef CPU_TLB
 		stat = tlbread(proc, ins.arg_0, ins.arg_1, ins.arg_2);
 #elif defined(MM_PAGING)
+		printf("\tProcessID : %d ",proc->pid);
+		printf("%syêu cầu đọc%s",YELLOW,RESET);
+		// printf(" ở reg_index : %d , offset : %d , destination : %d\n",ins.arg_0,ins.arg_1,ins.arg_2);
+		printf(" ở reg_index : %d , offset : %d\n",ins.arg_0,ins.arg_1);
 		stat = pgread(proc, ins.arg_0, ins.arg_1, ins.arg_2);
 #else
 		stat = read(proc, ins.arg_0, ins.arg_1, ins.arg_2);
@@ -89,6 +109,10 @@ int run(struct pcb_t * proc) {
 #ifdef CPU_TLB
 		stat = tlbwrite(proc, ins.arg_0, ins.arg_1, ins.arg_2);
 #elif defined(MM_PAGING)
+		printf("\tProcessID : %d ",proc->pid);
+		printf("%syêu cầu ghi%s",GREEN,RESET);
+		// printf(" giá trị : %d ,  ở reg_index : %d , offset : %d \n",ins.arg_0, ins.arg_1, ins.arg_2);
+		printf(" giá trị : %d ,  ở reg_index : %d , offset : %d \n",ins.arg_0, ins.arg_1, ins.arg_2);
 		stat = pgwrite(proc, ins.arg_0, ins.arg_1, ins.arg_2);
 #else
 		stat = write(proc, ins.arg_0, ins.arg_1, ins.arg_2);

@@ -45,7 +45,12 @@ $(OBJ)/%.o: %.c ${HEADER} $(OBJ)
 $(OBJ):
 	mkdir -p $(OBJ)
 
+# clean:
+# 	rm -f $(OBJ)/*.o os sched mem
+# 	rm -r $(OBJ)
+
 clean:
-	rm -f $(OBJ)/*.o os sched mem
-	rm -r $(OBJ)
+	find . -type f -name "*.o" -exec rm -f {} +
+	find . -type d -name "$(OBJ)" -exec rm -r {} +
+	find . -type d -name "input" -prune -o -type f \( -name "os" -o -name "mem" -o -name "sched" \) -exec rm -f {} +
 

@@ -1,0 +1,50 @@
+Đọc dữ liệu từ file : input/mySched_001
+Thời gian chạy : 6 , CPUS : 2 , Số tiến trình : 3
+Reading memory size
+Tiến trình : input/proc/p1s, Thời gian vào: 0, Độ ưu tiên: 0
+Tiến trình : input/proc/p2s, Thời gian vào: 1, Độ ưu tiên: 1
+Tiến trình : input/proc/p3s, Thời gian vào: 2, Độ ưu tiên: 2
+Time slot   0
+ld_routine
+Loading process from 'input/proc/p1s'
+        Loaded a process at input/proc/p1s, PID: 1 PRIO: 0
+Loading process from 'input/proc/p2s'
+Time slot   1
+        CPU 1: Dispatched process  1
+        Loaded a process at input/proc/p2s, PID: 2 PRIO: 1
+Loading process from 'input/proc/p3s'
+        Loaded a process at input/proc/p3s, PID: 3 PRIO: 2
+Time slot   2
+        CPU 0: Dispatched process  2
+Time slot   3
+Time slot   4
+Time slot   5
+Time slot   6
+Time slot   7
+        CPU 1: Put process  1 to run queue
+        CPU 1: Dispatched process  1
+Time slot   8
+        CPU 0: Put process  2 to run queue
+        CPU 0: Dispatched process  2
+Time slot   9
+Time slot  10
+Time slot  11
+        CPU 1: Processed  1 has finished
+        CPU 1: Dispatched process  3
+Time slot  12
+Time slot  13
+Time slot  14
+        CPU 0: Processed  2 has finished
+        CPU 0 stopped
+Time slot  15
+Time slot  16
+Time slot  17
+        CPU 1: Put process  3 to run queue
+        CPU 1: Dispatched process  3
+Time slot  18
+Time slot  19
+Time slot  20
+Time slot  21
+Time slot  22
+        CPU 1: Processed  3 has finished
+        CPU 1 stopped

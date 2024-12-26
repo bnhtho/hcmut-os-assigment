@@ -48,6 +48,9 @@ struct pcb_t * load(const char * path) {
 	char opcode[10];
 	proc->code = (struct code_seg_t*)malloc(sizeof(struct code_seg_t));
 	fscanf(file, "%u %u", &proc->priority, &proc->code->size);
+	
+	// printf("ProcessID: %u, Priority: %u, Code size: %u, Code text\n", proc->pid, proc->priority, proc->code->size);
+	printf("%sTải cấu hình Process từ file '%s'\t , với %d lệnh %s\t(Ở đây có nghĩa là chỉ đọc dữ liệu từ file chưa đưa vào hàng đợi)\n",YELLOW, path,proc->code->size,RESET);
 	proc->code->text = (struct inst_t*)malloc(
 		sizeof(struct inst_t) * proc->code->size
 	);

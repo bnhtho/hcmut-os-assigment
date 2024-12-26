@@ -1,4 +1,3 @@
-
 #include "queue.h"
 #include "sched.h"
 #include <pthread.h>
@@ -18,7 +17,7 @@ int queue_empty(void) {
 	unsigned long prio;
 	for (prio = 0; prio < MAX_PRIO; prio++)
 		if(!empty(&mlq_ready_queue[prio])) 
-			return 0;
+			return -1;
 #endif
 	return (empty(&ready_queue) && empty(&run_queue));
 }
@@ -28,20 +27,20 @@ void init_scheduler(void) {
 	int i ;
 
 	for (i = 0; i < MAX_PRIO; i ++)
-	{
-		mlq_ready_queue[i].size = 0;
-		mlq_ready_queue[i].slot = MAX_PRIO - i;
-	}
+		{
+			mlq_ready_queue[i].size = 0;
+			mlq_ready_queue[i].slot = MAX_PRIO - i;
+		}
 #endif
 	ready_queue.size = 0;
 	run_queue.size = 0;
 	pthread_mutex_init(&queue_lock, NULL);
 }
 
-#ifdef MLQ_SCHED
 /* Function to print the contents of the MLQ ready queue */
 void print_mlq_ready_queue(void)
 {
+#ifdef MLQ_SCHED
 	pthread_mutex_lock(&queue_lock);
 
 	printf("|=====================================|\n");
@@ -62,59 +61,48 @@ void print_mlq_ready_queue(void)
 	printf("|=====================================|\n");
 
 	pthread_mutex_unlock(&queue_lock);
+#endif
 }
 
-
-void resetSlot()
-{
-	for (int i = 0; i < MAX_PRIO; ++i)
-	{
-		mlq_ready_queue[i].slot = MAX_PRIO - i;
-	}
-}
-
-
+#ifdef MLQ_SCHED
 /* 
  *  Stateful design for routine calling
  *  based on the priority and our MLQ policy
  *  We implement stateful here using transition technique
  *  State representation   prio = 0 .. MAX_PRIO, curr_slot = 0..(MAX_PRIO - prio)
  */
-struct pcb_t *get_mlq_proc(void) {
-    struct pcb_t *proc = NULL;
+struct pcb_t * get_mlq_proc(void) {
+	struct pcb_t * proc = NULL;
 	/*TODO: get a process from PRIORITY [ready_queue].
 	 * Remember to use lock to protect the queue.
 	 */
-	// Print to debug
-	// print_mlq_ready_queue();
-    // Duyệt các hàng đợi theo thứ tự ưu tiên
-   	pthread_mutex_lock(&queue_lock); // Khóa để bảo vệ hàng đợi
-
-	// Duyệt qua từng hàng đợi theo độ ưu tiên (từ cao đến thấp)
-	for (int prio = 0; prio < MAX_PRIO; prio++)
-	{
-		if (mlq_ready_queue[prio].size > 0)
-		{
-			if (mlq_ready_queue[prio].slot > 0)
-			{
-				proc = dequeue(&mlq_ready_queue[prio]); // Lấy tiến trình đầu tiên
-				mlq_ready_queue[prio].slot--;
+	pthread_mutex_lock(&queue_lock); // Khóa hàng đợi để bảo vệ truy cập đồng thời
+	for (int prio = 0; prio < MAX_PRIO; prio++) {
+		if (mlq_ready_queue[prio].slot > 0 && !empty(&mlq_ready_queue[prio])) {
+			// Nếu slot còn và hàng đợi không rỗng, lấy tiến trình ra
+			proc = dequeue(&mlq_ready_queue[prio]);
+			mlq_ready_queue[prio].slot--; // Giảm slot
+			break;
+		}
+	}
+	
+	if (proc == NULL) {
+		// Nếu không tìm thấy tiến trình nào, reset lại slot cho tất cả các hàng đợi
+		for (int prio = 0; prio < MAX_PRIO; prio++) {
+			mlq_ready_queue[prio].slot = MAX_PRIO - prio;
+		}
+		// Thử lấy tiến trình lại sau khi reset slot
+		for (int prio = 0; prio < MAX_PRIO; prio++) {
+			if (mlq_ready_queue[prio].slot > 0 && !empty(&mlq_ready_queue[prio])) {
+				proc = dequeue(&mlq_ready_queue[prio]);
+				mlq_ready_queue[prio].slot--; // Giảm slot
 				break;
-			}else{
-				// Trường hợp đi tới cuối queue rồi mà không lấy được nữa thì quay lại hàng đầu tiên để lấy tiếp và reset lại slot để lấy lại từ đầu
-				if(prio == MAX_PRIO - 1){	
-					resetSlot();
-					prio = -1;
-				}
 			}
 		}
 	}
-
 	pthread_mutex_unlock(&queue_lock); // Mở khóa hàng đợi
-    return proc;
+	return proc; // Trả về tiến trình lấy được
 }
-
-
 
 void put_mlq_proc(struct pcb_t * proc) {
 	pthread_mutex_lock(&queue_lock);
@@ -140,26 +128,20 @@ void add_proc(struct pcb_t * proc) {
 	return add_mlq_proc(proc);
 }
 #else
-struct pcb_t *get_proc(void) {
+struct pcb_t * get_proc(void) {
+	struct pcb_t * proc = NULL;
 	/*TODO: get a process from [ready_queue].
 	 * Remember to use lock to protect the queue.
 	 * */
-	struct pcb_t *proc = NULL;
-
 	pthread_mutex_lock(&queue_lock);
-
 	// Lấy tiến trình từ ready_queue nếu không rỗng
 	if (ready_queue.size > 0)
 	{
 		proc = dequeue(&ready_queue);
 	}
-
 	pthread_mutex_unlock(&queue_lock);
 	return proc;
 }
-
-
-
 
 void put_proc(struct pcb_t * proc) {
 	pthread_mutex_lock(&queue_lock);

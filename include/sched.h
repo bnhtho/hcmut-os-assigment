@@ -23,6 +23,7 @@ void put_proc(struct pcb_t * proc);
 /* Add a new process to ready queue */
 void add_proc(struct pcb_t * proc);
 
+void print_mlq_ready_queue(void);
 #endif
 
 

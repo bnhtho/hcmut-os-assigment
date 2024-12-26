@@ -28,10 +28,13 @@ struct vm_rg_struct {
  *  Memory area struct
  */
 struct vm_area_struct {
+   /** Virtual memory ID */
    unsigned long vm_id;
+   /** Virtual memory start */
    unsigned long vm_start;
+   /** Virtual memory end */
    unsigned long vm_end;
-
+   /** Virtual memory break */
    unsigned long sbrk;
 /*
  * Derived field
